@@ -1,29 +1,689 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>우리교회 새가족</title>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>대구우리교회 새가족교육</title>
+<style>
+  /* ── 글자 크기: --fs 한 곳만 바꾸면 전체가 함께 커짐(전세대 대응) ── */
+  :root{
+    --fs: 18px;                /* 기본 18px (가/가+/가++ 토글로 변경) */
+    --navy:#1F3864; --blue:#2E5395; --gray:#5b5b5b; --line:#e3e7ee;
+    --ok:#2e7d32; --bg:#f6f8fb; --card:#fff; --accent:#fbf0e0;
+    --hh:56px;                 /* 헤더 높이 */
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"맑은 고딕","Malgun Gothic",-apple-system,system-ui,sans-serif;
+    font-size:var(--fs); line-height:1.75; color:#1d2330; background:var(--bg);
+    -webkit-text-size-adjust:100%;
+  }
+  /* ── 상단 헤더: 스크롤 내리면 숨고 올리면 나타남(본문 가림 방지) ── */
+  header{
+    position:fixed; top:0; left:0; right:0; height:var(--hh); z-index:50;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 14px; background:var(--navy); color:#fff;
+    transition:transform .25s ease; padding-top:env(safe-area-inset-top);
+  }
+  header.hide{ transform:translateY(-100%); }
+  header .title{ font-size:1rem; font-weight:700; }
+  header .tools{ display:flex; gap:6px; align-items:center; }
+  header button{ background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px;
+    padding:8px 10px; font-size:.85rem; cursor:pointer; }
+  /* 본문: 헤더 높이만큼 띄우고, 앵커 이동 시에도 헤더에 안 가리게 scroll 보정 */
+  main{ max-width:760px; margin:0 auto; padding:16px 16px 80px; }
+  html{ scroll-padding-top:calc(var(--hh) + 10px); }
+  body.focus header{ transform:translateY(-100%); }     /* 집중모드: 헤더 숨김 */
+  body.focus #focusExit{ display:flex; }
+  #focusExit{ display:none; position:fixed; right:14px; bottom:18px; z-index:60;
+    background:var(--navy); color:#fff; border:0; border-radius:24px; padding:12px 16px;
+    font-size:.9rem; box-shadow:0 4px 14px rgba(0,0,0,.2); cursor:pointer; }
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBH7OxjGgX8J2Qyka7CK0CG1yAGiQCSaBQ",
-            authDomain: "woori-newfamily.firebaseapp.com",
-            projectId: "woori-newfamily",
-            storageBucket: "woori-newfamily.firebasestorage.app",
-            messagingSenderId: "562713537848",
-            appId: "1:562713537848:web:a6e02559440a9fc174a5cd"
-        };
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px; margin:14px 0; }
+  h1{ font-size:1.5rem; color:var(--navy); margin:.2em 0 .4em; }
+  h2{ font-size:1.18rem; color:var(--blue); margin:1em 0 .4em; }
+  .muted{ color:var(--gray); }
+  .pill{ display:inline-block; background:#eef3fb; color:var(--navy);
+    border-radius:999px; padding:3px 12px; font-size:.85rem; font-weight:700; }
+  /* 버튼: 터치영역 넉넉히(48px+) */
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    min-height:50px; padding:0 20px; border-radius:12px; border:0; cursor:pointer;
+    font-size:1rem; font-weight:700; background:var(--blue); color:#fff; }
+  .btn.sec{ background:#eef1f6; color:var(--navy); }
+  .btn.full{ width:100%; }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  input,textarea{ width:100%; font-size:1rem; font-family:inherit; color:#1d2330;
+    border:1.5px solid #cfd6e2; border-radius:10px; padding:12px; background:#fff; }
+  textarea{ min-height:96px; resize:vertical; line-height:1.7; }
+  label{ display:block; font-weight:700; margin:14px 0 6px; }
 
-        const app = initializeApp(firebaseConfig);
-        window.db = getFirestore(app);
-        window.auth = getAuth(app);
-    </script>
+  .verse{ background:#eef3fb; border-left:6px solid #9db7e0; border-radius:8px;
+    padding:12px 14px; margin:10px 0; }
+  .one{ background:var(--accent); border-left:6px solid #e0a93c; border-radius:8px;
+    padding:14px; font-weight:700; color:var(--navy); }
+  .save{ font-size:.82rem; color:var(--ok); height:1.2em; }
+  .save.dim{ color:var(--gray); }
+
+  /* 주차 목록 */
+  .weeklist{ display:flex; flex-direction:column; gap:10px; }
+  .weekrow{ display:flex; align-items:center; gap:12px; padding:14px; border:1px solid var(--line);
+    border-radius:12px; background:#fff; cursor:pointer; }
+  .weekrow .num{ width:40px; height:40px; border-radius:10px; background:#eef3fb; color:var(--navy);
+    font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .weekrow.done{ background:#f1f8f1; border-color:#cfe6cf; }
+  .weekrow .chk{ margin-left:auto; font-weight:800; color:var(--ok); }
+  .progress{ height:12px; background:#e7ecf4; border-radius:8px; overflow:hidden; margin:6px 0; }
+  .progress > i{ display:block; height:100%; background:var(--blue); width:0; transition:width .3s; }
+
+  /* 메시지 */
+  .msg{ padding:10px 12px; border-radius:12px; margin:8px 0; max-width:85%; }
+  .msg.me{ background:#e9f0fb; margin-left:auto; }
+  .msg.pa{ background:#fbf0e0; }
+  .msg small{ display:block; color:var(--gray); font-size:.78rem; margin-top:4px; }
+
+  /* 목사 명단 */
+  .ltable{ width:100%; border-collapse:collapse; }
+  .ltable td,.ltable th{ border-bottom:1px solid var(--line); padding:10px 8px; text-align:left; vertical-align:middle; }
+  .codechip{ font-family:monospace; background:#f1f1f4; padding:3px 8px; border-radius:6px; }
+
+  .demo{ background:#fff7e6; border:1px solid #ffd98a; color:#8a5a00; border-radius:10px;
+    padding:10px 12px; font-size:.88rem; margin:12px 0; }
+  .tabs{ display:flex; gap:8px; margin:14px 0; }
+  .tabs button{ flex:1; min-height:48px; border:1.5px solid #cfd6e2; background:#fff; color:var(--navy);
+    border-radius:10px; font-weight:700; cursor:pointer; }
+  .tabs button.on{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  .hint{ font-size:.85rem; color:var(--gray); margin-top:6px; }
+  .row2{ display:flex; gap:10px; flex-wrap:wrap; }
+  .row2 > *{ flex:1; min-width:140px; }
+</style>
 </head>
 <body>
-    <h1>우리교회 새가족 서비스 시작</h1>
-    <p>설정이 완료되었습니다. 이제 교인분들께 코드를 안내해 주세요!</p>
+<header>
+  <div class="title">새가족교육 · 왜 예수님인가?</div>
+  <div class="tools">
+    <button id="fsBtn" title="글자 크기">가＋</button>
+    <button id="focusBtn" title="집중 읽기">집중</button>
+    <button id="logoutBtn" style="display:none">나가기</button>
+  </div>
+</header>
+<button id="focusExit">집중모드 끝내기 ✕</button>
+
+<main id="app"><!-- 화면이 여기에 렌더링됩니다 --></main>
+
+<!--
+ ════════════════════════════════════════════════════════════════
+  ★ 사용 전 단 한 가지: 아래 firebaseConfig 에 본인 프로젝트 값 붙여넣기.
+    비워두면(현재) '데모 모드'로 동작합니다(브라우저 저장, 미리보기용).
+ ════════════════════════════════════════════════════════════════
+-->
+<script>
+  // 여기에 Firebase 콘솔 > 프로젝트설정 > 웹앱 의 config 를 붙여넣으세요.
+  const firebaseConfig = {
+    apiKey: "AIzaSyBH7OxjGgX8J2Qyka7CK0CG1yAGiQCSaBQ", authDomain: "woori-newfamily.firebaseapp.com", projectId: "woori-newfamily",
+    storageBucket: "woori-newfamily.firebasestorage.app", messagingSenderId: "562713537848", appId: "1:562713537848:web:a6e02559440a9fc174a5cd"
+  };
+  const PASTOR_EMAIL = "ssam235@naver.com"; // 목사 이메일(규칙과 동일하게)
+</script>
+
+<script type="module">
+/* ───────────────────────── 1) 백엔드 추상화 ─────────────────────────
+   demo  : 브라우저 localStorage (Firebase 미설정 시)
+   live  : Firebase Firestore + Auth (config 입력 시)
+   둘 다 동일한 인터페이스(getLearner/saveLearner/listLearners/...)를 제공해
+   화면 코드는 어느 모드인지 신경 쓸 필요가 없습니다. */
+const LIVE = !!(firebaseConfig && firebaseConfig.apiKey);
+let fx = null; // firestore helpers (live 모드에서 채워짐)
+let MODE = LIVE ? "live" : "demo";
+
+async function initBackend(){
+  if(!LIVE) return;
+  try{
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut } =
+      await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, addDoc, query, orderBy, serverTimestamp } =
+      await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app); const db = getFirestore(app);
+    fx = { auth, db, signInAnonymously, signInWithEmailAndPassword, signOut,
+      doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, addDoc, query, orderBy, serverTimestamp };
+  }catch(e){
+    console.error(e); MODE="demo"; // 로드 실패 시 안전하게 데모로
+    alert("온라인 연결에 문제가 있어 임시(데모) 모드로 표시합니다.");
+  }
+}
+
+// ── 데모 저장소(localStorage) ──
+const LS = {
+  read:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } },
+  write:(k,v)=> localStorage.setItem(k, JSON.stringify(v)),
+};
+
+const DB = {
+  async pastorLogin(email, pw){
+    if(MODE==="demo"){ return email && pw ? {email} : null; }
+    const cred = await fx.signInWithEmailAndPassword(fx.auth, email, pw);
+    return { email: cred.user.email };
+  },
+  async learnerAuth(){ // 학습자: live 모드에서 익명 로그인
+    if(MODE==="live" && !fx.auth.currentUser){ await fx.signInAnonymously(fx.auth); }
+  },
+  async getLearner(code){
+    if(MODE==="demo") return LS.read("nf_learner_"+code, null);
+    const snap = await fx.getDoc(fx.doc(fx.db,"learners",code));
+    return snap.exists() ? snap.data() : null;
+  },
+  async saveLearner(code, data){ // 자기 문서에만 병합 저장(동시 접속 간섭 없음)
+    data.updatedAt = Date.now();
+    if(MODE==="demo"){ LS.write("nf_learner_"+code, data); return; }
+    await fx.setDoc(fx.doc(fx.db,"learners",code), data, { merge:true });
+  },
+  async createLearner(code, data){
+    if(MODE==="demo"){
+      LS.write("nf_learner_"+code, data);
+      const idx = LS.read("nf_index", []); if(!idx.includes(code)){ idx.push(code); LS.write("nf_index", idx); }
+      return;
+    }
+    await fx.setDoc(fx.doc(fx.db,"learners",code), data);
+  },
+  async listLearners(){ // 목사 전용
+    if(MODE==="demo"){
+      return LS.read("nf_index", []).map(c => ({ code:c, ...(LS.read("nf_learner_"+c, {})) }));
+    }
+    const qs = await fx.getDocs(fx.collection(fx.db,"learners"));
+    return qs.docs.map(d => ({ code:d.id, ...d.data() }));
+  },
+  async addMessage(code, msg){
+    msg.at = Date.now();
+    if(MODE==="demo"){ const k="nf_msgs_"+code; const a=LS.read(k,[]); a.push(msg); LS.write(k,a); return; }
+    await fx.addDoc(fx.collection(fx.db,"learners",code,"messages"), msg);
+  },
+  async listMessages(code){
+    if(MODE==="demo") return LS.read("nf_msgs_"+code, []);
+    const qs = await fx.getDocs(fx.query(fx.collection(fx.db,"learners",code,"messages"), fx.orderBy("at")));
+    return qs.docs.map(d => d.data());
+  },
+
+  // ── 기도제목 나눔(공유) ──
+  async listPrayers(){
+    if(MODE==="demo") return LS.read("nf_prayers", []);
+    const qs = await fx.getDocs(fx.query(fx.collection(fx.db,"prayers"), fx.orderBy("at","desc")));
+    return qs.docs.map(d => ({ id:d.id, ...d.data() }));
+  },
+  async addPrayer(pr){
+    pr.at = Date.now(); pr.prayedBy = 0;
+    if(MODE==="demo"){ const a=LS.read("nf_prayers",[]); pr.id="p"+pr.at; a.unshift(pr); LS.write("nf_prayers",a); return; }
+    await fx.addDoc(fx.collection(fx.db,"prayers"), pr);
+  },
+  async prayFor(id){
+    if(MODE==="demo"){ const a=LS.read("nf_prayers",[]); const p=a.find(x=>x.id===id); if(p){ p.prayedBy=(p.prayedBy||0)+1; LS.write("nf_prayers",a); } return; }
+    const ref=fx.doc(fx.db,"prayers",id); const s=await fx.getDoc(ref);
+    await fx.updateDoc(ref, { prayedBy:(s.data().prayedBy||0)+1 });
+  },
+  async deletePrayer(id){
+    if(MODE==="demo"){ LS.write("nf_prayers", LS.read("nf_prayers",[]).filter(x=>x.id!==id)); return; }
+    await fx.deleteDoc(fx.doc(fx.db,"prayers",id));
+  },
+
+  // ── 질문과 답변(Q&A) ──
+  async listQna(){
+    if(MODE==="demo") return LS.read("nf_qna", []);
+    const qs = await fx.getDocs(fx.query(fx.collection(fx.db,"qna"), fx.orderBy("at","desc")));
+    return qs.docs.map(d => ({ id:d.id, ...d.data() }));
+  },
+  async addQna(q){
+    q.at = Date.now(); q.answer = "";
+    if(MODE==="demo"){ const a=LS.read("nf_qna",[]); q.id="q"+q.at; a.unshift(q); LS.write("nf_qna",a); return; }
+    await fx.addDoc(fx.collection(fx.db,"qna"), q);
+  },
+  async answerQna(id, answer){
+    if(MODE==="demo"){ const a=LS.read("nf_qna",[]); const q=a.find(x=>x.id===id); if(q){ q.answer=answer; q.answeredAt=Date.now(); LS.write("nf_qna",a); } return; }
+    await fx.updateDoc(fx.doc(fx.db,"qna",id), { answer, answeredAt:Date.now() });
+  },
+  async deleteQna(id){
+    if(MODE==="demo"){ LS.write("nf_qna", LS.read("nf_qna",[]).filter(x=>x.id!==id)); return; }
+    await fx.deleteDoc(fx.doc(fx.db,"qna",id));
+  },
+};
+
+/* ───────────────────────── 2) 교재 콘텐츠 ───────────────────────── */
+const CURRICULUM = [
+  { w:1, title:"왜 예수님인가?", one:"당신은 행복하도록, 사랑받도록 지어졌습니다.",
+    read:["행복은 잡으려 하면 달아나고 짧습니다. 우리 안엔 영원한 행복을 향한 갈망이 있습니다.",
+          "하나님은 사람을 사랑받도록 지으셨습니다. 그러나 사람은 스스로 주인이 되려 하나님을 떠났고(죄), 관계가 깨졌습니다.",
+          "그래도 하나님은 포기하지 않으시고 그 답으로 예수님을 보내주셨습니다."],
+    vRef:"요한복음 3:16", vText:"하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니…",
+    q:["최근 ‘행복하다’ 느낀 순간은? 얼마나 오래갔나요?","나는 행복을 주로 어디서 찾고 있나요?"] },
+  { w:2, title:"예수님은 누구신가?", one:"나를 아시는 ‘사람’, 나를 구원하시는 ‘하나님’.",
+    read:["‘예수’는 ‘구원’이라는 뜻입니다.","참 사람: 주리고 피곤하고 우셨지만 죄는 없으셨습니다. 그래서 내 연약함을 아십니다.",
+          "참 하나님: ‘나와 아버지는 하나’. 그래서 죽음을 이기고 끝까지 구원하십니다."],
+    vRef:"요한복음 10:30", vText:"나와 아버지는 하나이니라",
+    q:["눈물 흘리시는 예수님과 모든 권세의 하나님 — 더 마음에 닿는 쪽은?","예수님이 아실 ‘나의 연약함’은?"] },
+  { w:3, title:"무엇을 하셨는가? — 십자가", one:"예수님이 십자가에서 내 죄를 대신 지셨습니다(위대한 교환).",
+    read:["예수님은 실제로 십자가에서 죽으셨습니다.","죄는 생명으로만 갚을 수 있어, 예수님이 자기 생명으로 내 죄값을 치르셨습니다.",
+          "그분이 내 죄를 가져가시고 그분의 의를 내게 주셨습니다 — ‘갚을 빚’이 아니라 ‘끝난 일’."],
+    vRef:"갈라디아서 3:13", vText:"그리스도께서 우리를 위하여 저주를 받은 바 되사 …속량하셨으니",
+    q:["내 죄를 대신 지신 사랑 앞에 드는 마음은?","‘이미 청산된 빚’이라면 무엇이 달라질까요?"] },
+  { w:4, title:"지금 무엇을 하시는가? — 부활", one:"예수님은 지금도 살아 계셔 내 삶을 다스리시고 함께하십니다.",
+    read:["부활은 오백 명이 넘는 증인이 본 역사적 사실입니다.","부활하신 주님은 ‘세상 끝날까지 함께’ 하겠다 약속하셨습니다.",
+          "내 고난도 ‘예수님 밖’이 아니라 그분의 다스림 ‘안’에서 겪는 일입니다."],
+    vRef:"로마서 4:25", vText:"예수는 …우리를 의롭다 하시기 위하여 살아나셨느니라",
+    q:["부활하신 주님이 ‘지금’ 내 상황을 다스리신다면 이번 주 무엇이 달라질까요?","‘빼앗기지 않는 행복’은 무엇이 다른가요?"] },
+  { w:5, title:"나는 이제 누구인가?", one:"용서받은 죄인을 넘어, 하나님의 ‘사랑받는 자녀’.",
+    read:["회개는 내 왕좌에서 내려와 예수님께 자리를 드리는 것, 믿음은 그분께 나를 맡기는 것.",
+          "하나님은 내 행위가 아니라 그리스도의 의로 나를 의롭다 하십니다.",
+          "구원의 확신은 느낌이 아니라 ① 말씀의 약속 ② 그리스도의 사역 ③ 성령의 증거 위에 섭니다."],
+    vRef:"요한복음 1:12", vText:"영접하는 자 …에게는 하나님의 자녀가 되는 권세를 주셨으니",
+    q:["‘나는 하나님의 사랑받는 자녀’라는 말, 어디까지 받아들여지나요?","확신이 흔들릴 때 무엇에 기대고 싶은가요?"],
+    confession:true },
+  { w:6, title:"어떻게 살아갈 것인가?", one:"새 생명은 함께, 매일의 작은 걸음으로 자랍니다.",
+    read:["은혜의 방편: 예배·말씀·기도·성례(세례·성찬)·공동체·섬김. 의무가 아니라 자녀의 일상입니다.",
+          "한꺼번에 다 하려 말고, 이번 주 ‘하나’부터 시작하세요.",
+          "이 과정은 끝이 아니라 시작 — 공동체(구역)와 세례·학습으로 이어갑니다."],
+    vRef:"사도행전 2:42", vText:"…서로 교제하고 떡을 떼며 오로지 기도하기를 힘쓰니라",
+    q:["은혜의 방편 중 이번 주 ‘하나’만 시작한다면?","6주 처음과 지금, 내 마음은 무엇이 달라졌나요?"] },
+];
+
+/* ───────────────────────── 3) 상태 + 유틸 ───────────────────────── */
+const app = document.getElementById("app");
+let S = { role:null, code:null, learner:null, email:null }; // 현재 로그인 상태
+const esc = s => (s??"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const debounce = (fn,ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
+function randomCode(name){
+  const base=(name||"새가족").trim().slice(0,6).replace(/\s/g,"");
+  return base+"-"+Math.floor(1000+Math.random()*9000); // 추측 어려운 4자리
+}
+
+/* ───────────────────────── 4) 화면들 ───────────────────────── */
+function renderLogin(){
+  document.getElementById("logoutBtn").style.display="none";
+  app.innerHTML = `
+    ${MODE==="demo" ? `<div class="demo">⚙️ 데모 모드입니다(미리보기). 실제 운영은 Firebase 설정 후 자동 전환됩니다.</div>`:""}
+    <div class="card">
+      <h1>대구우리교회 새가족교육</h1>
+      <p class="muted">‘왜 예수님인가?’ · 6주 과정에 오신 것을 환영합니다.</p>
+      <div class="tabs">
+        <button id="tabL" class="on">새가족</button>
+        <button id="tabP">인도자·목사</button>
+      </div>
+      <div id="paneL">
+        <label>나의 개인 코드</label>
+        <input id="lcode" placeholder="예) 민수-4821" autocomplete="off" />
+        <p class="hint">코드는 인도자에게 받습니다. 어느 폰에서든 같은 코드로 이어서 할 수 있어요.</p>
+        <button class="btn full" id="lgo" style="margin-top:10px">입장하기</button>
+      </div>
+      <div id="paneP" style="display:none">
+        <label>이메일</label><input id="pemail" type="email" autocomplete="username" />
+        <label>비밀번호</label><input id="ppw" type="password" autocomplete="current-password" />
+        <button class="btn full" id="pgo" style="margin-top:12px">로그인</button>
+        ${MODE==="demo" ? `<p class="hint">데모에선 아무 이메일·비번이나 입력하면 됩니다.</p>`:""}
+      </div>
+    </div>`;
+  const on=(id)=>document.getElementById(id);
+  on("tabL").onclick=()=>{ on("tabL").classList.add("on"); on("tabP").classList.remove("on"); on("paneL").style.display=""; on("paneP").style.display="none"; };
+  on("tabP").onclick=()=>{ on("tabP").classList.add("on"); on("tabL").classList.remove("on"); on("paneP").style.display=""; on("paneL").style.display="none"; };
+  on("lgo").onclick=learnerEnter;
+  on("pgo").onclick=pastorEnter;
+  on("lcode").addEventListener("keydown",e=>{ if(e.key==="Enter") learnerEnter(); });
+}
+
+async function learnerEnter(){
+  const code=document.getElementById("lcode").value.trim();
+  if(!code){ alert("코드를 입력해 주세요."); return; }
+  try{
+    await DB.learnerAuth();
+    let l = await DB.getLearner(code);
+    if(!l){ alert("코드를 찾을 수 없어요. 인도자에게 확인해 주세요."); return; }
+    S={ role:"learner", code, learner:l };
+    document.getElementById("logoutBtn").style.display="";
+    renderLearnerHome();
+  }catch(e){ console.error(e); alert("입장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요."); }
+}
+async function pastorEnter(){
+  const email=document.getElementById("pemail").value.trim();
+  const pw=document.getElementById("ppw").value;
+  try{
+    const u = await DB.pastorLogin(email,pw);
+    if(!u){ alert("이메일·비밀번호를 확인해 주세요."); return; }
+    S={ role:"pastor", email:u.email };
+    document.getElementById("logoutBtn").style.display="";
+    renderPastorHome();
+  }catch(e){ console.error(e); alert("로그인 실패: 이메일/비밀번호를 확인해 주세요."); }
+}
+
+function progressPct(l){
+  const p = l.progress||{}; const done = CURRICULUM.filter(c=>p["w"+c.w]?.done).length;
+  return Math.round(done/CURRICULUM.length*100);
+}
+function renderLearnerHome(){
+  const l=S.learner, p=l.progress||{};
+  const firstUndone = (CURRICULUM.find(c=>!p["w"+c.w]?.done)||CURRICULUM[0]).w;
+  app.innerHTML = `
+    <div class="card">
+      <span class="pill">${esc(l.name||"새가족")} 님</span>
+      <h1 style="margin-top:10px">나의 6주 여정</h1>
+      <div class="progress"><i style="width:${progressPct(l)}%"></i></div>
+      <p class="muted">${progressPct(l)}% 진행 · 정답보다 마음입니다. 천천히 가도 괜찮아요.</p>
+      <button class="btn full" id="resume" style="margin-top:8px">${p["w"+firstUndone]?.done?"다시 보기":"이어서 하기"} (${firstUndone}주)</button>
+    </div>
+    <div class="weeklist">
+      ${CURRICULUM.map(c=>{
+        const done=p["w"+c.w]?.done;
+        return `<div class="weekrow ${done?"done":""}" data-w="${c.w}">
+          <div class="num">${c.w}</div>
+          <div><b>${c.w}주</b> · ${esc(c.title)}</div>
+          <div class="chk">${done?"✓ 완료":""}</div>
+        </div>`;
+      }).join("")}
+    </div>`;
+  document.getElementById("resume").onclick=()=>renderWeek(firstUndone);
+  app.querySelectorAll(".weekrow").forEach(el=> el.onclick=()=>renderWeek(+el.dataset.w));
+  const nav=document.createElement("div"); nav.className="card";
+  nav.innerHTML=`<h2>함께 나눠요</h2>
+    <div class="row2">
+      <button class="btn sec" id="goPray">🙏 기도제목 나눔</button>
+      <button class="btn sec" id="goQna">💬 질문과 답변</button>
+    </div>`;
+  app.appendChild(nav);
+  document.getElementById("goPray").onclick=()=>renderPrayers("learner");
+  document.getElementById("goQna").onclick=()=>renderQna("learner");
+}
+
+function renderWeek(w){
+  const c=CURRICULUM.find(x=>x.w===w);
+  const l=S.learner, p=l.progress||{}, ans=l.answers||{};
+  const wp = p["w"+w]||{};
+  app.innerHTML = `
+    <button class="btn sec" id="back" style="min-height:44px">‹ 목록</button>
+    <div class="card">
+      <span class="pill">${w}주</span>
+      <h1 style="margin-top:8px">${esc(c.title)}</h1>
+      <div class="one">${esc(c.one)}</div>
+      <h2>함께 읽어요</h2>
+      ${c.read.map(r=>`<p>· ${esc(r)}</p>`).join("")}
+      <div class="verse"><b>${esc(c.vRef)}</b><br>${esc(c.vText)}</div>
+      <h2>함께 생각해요</h2>
+      ${c.q.map((q,i)=>`
+        <label>${i+1}. ${esc(q)}</label>
+        <textarea data-k="w${w}_q${i+1}" placeholder="여기에 자유롭게 적어보세요">${esc(ans["w"+w+"_q"+(i+1)]||"")}</textarea>
+      `).join("")}
+      ${c.confession?`
+        <label>나의 신앙고백 (비공개 — 인도자/목사만 봅니다)</label>
+        <textarea data-k="confession" placeholder="마음이 준비되었다면 짧게 적어보세요">${esc(l.confession||"")}</textarea>`:""}
+      <div class="save dim" id="savestate">자동 저장됩니다</div>
+      <button class="btn full" id="done" style="margin-top:8px">${wp.done?"완료 취소":"이 과를 마쳤어요 ✓"}</button>
+    </div>
+    <div class="card">
+      <h2>인도자에게 1:1 (비공개)</h2>
+      <div id="msgs" class="muted">불러오는 중…</div>
+      <div class="row2" style="margin-top:8px">
+        <textarea id="msgin" placeholder="질문이나 나누고 싶은 말을 적어주세요" style="min-height:60px"></textarea>
+      </div>
+      <button class="btn" id="msgsend" style="margin-top:8px">보내기</button>
+    </div>`;
+  document.getElementById("back").onclick=renderLearnerHome;
+
+  // 자동 저장(0.8초 디바운스) — 자기 문서에만 저장 → 동시 접속 간섭 없음
+  const setState=(t,dim)=>{ const s=document.getElementById("savestate"); s.textContent=t; s.classList.toggle("dim",!!dim); };
+  const persist = debounce(async ()=>{
+    try{
+      l.answers=l.answers||{};
+      app.querySelectorAll("textarea[data-k]").forEach(t=>{
+        if(t.dataset.k==="confession") l.confession=t.value; else l.answers[t.dataset.k]=t.value;
+      });
+      await DB.saveLearner(S.code, { name:l.name, answers:l.answers, confession:l.confession||"", progress:l.progress||{} });
+      setState("저장됨 ✓");
+    }catch(e){ console.error(e); setState("저장 실패 — 잠시 후 자동 재시도", true); }
+  }, 800);
+  app.querySelectorAll("textarea[data-k]").forEach(t=>{
+    t.addEventListener("input", ()=>{ setState("저장 중…", true); persist(); });
+  });
+
+  document.getElementById("done").onclick=async()=>{
+    l.progress=l.progress||{}; l.progress["w"+w]={ done: !(l.progress["w"+w]?.done) };
+    try{ await DB.saveLearner(S.code,{ progress:l.progress }); renderWeek(w); }
+    catch(e){ console.error(e); alert("저장에 실패했어요. 다시 시도해 주세요."); }
+  };
+
+  loadThread(S.code, false);
+  document.getElementById("msgsend").onclick=async()=>{
+    const v=document.getElementById("msgin").value.trim(); if(!v) return;
+    try{ await DB.addMessage(S.code,{ from:"learner", text:v }); document.getElementById("msgin").value=""; loadThread(S.code,false); }
+    catch(e){ console.error(e); alert("전송 실패. 다시 시도해 주세요."); }
+  };
+}
+
+async function loadThread(code, isPastor){
+  const box=document.getElementById("msgs"); if(!box) return;
+  try{
+    const list=await DB.listMessages(code);
+    box.innerHTML = list.length ? list.map(m=>`
+      <div class="msg ${m.from==="pastor"?"pa":"me"}">${esc(m.text)}
+        <small>${m.from==="pastor"?"인도자":"새가족"} · ${new Date(m.at).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</small>
+      </div>`).join("") : `<p class="muted">아직 대화가 없습니다. 먼저 인사를 건네보세요.</p>`;
+  }catch(e){ console.error(e); box.innerHTML=`<p class="muted">대화를 불러오지 못했어요.</p>`; }
+}
+
+/* ── 목사 화면 ── */
+async function renderPastorHome(){
+  document.getElementById("logoutBtn").style.display="";
+  app.innerHTML=`<div class="card"><h1>인도자 대시보드</h1><p class="muted">불러오는 중…</p></div>`;
+  let list=[];
+  try{ list=await DB.listLearners(); }catch(e){ console.error(e); }
+  app.innerHTML=`
+    <div class="card">
+      <h1>인도자 대시보드</h1>
+      <div class="row2">
+        <input id="newname" placeholder="새가족 이름" />
+        <button class="btn" id="addbtn">코드 발급·등록</button>
+      </div>
+      <p class="hint">등록하면 개인 코드가 만들어집니다. 그 코드를 새가족에게 카톡으로 전달하세요.</p>
+    </div>
+    <div class="card">
+      <h2>학습자 명단 (${list.length}명)</h2>
+      <table class="ltable"><tbody id="lbody">
+        ${list.length? list.map(l=>`
+          <tr data-code="${esc(l.code)}">
+            <td><b>${esc(l.name||"-")}</b></td>
+            <td><span class="codechip">${esc(l.code)}</span></td>
+            <td style="min-width:120px">
+              <div class="progress" style="margin:0"><i style="width:${progressPct(l)}%"></i></div>
+              <small class="muted">${progressPct(l)}%</small>
+            </td>
+            <td><button class="btn sec view" style="min-height:40px;padding:0 12px">보기</button></td>
+          </tr>`).join("") : `<tr><td colspan="4" class="muted">아직 등록된 새가족이 없습니다.</td></tr>`}
+      </tbody></table>
+    </div>`;
+  document.getElementById("addbtn").onclick=async()=>{
+    const name=document.getElementById("newname").value.trim();
+    if(!name){ alert("이름을 입력해 주세요."); return; }
+    const code=randomCode(name);
+    try{
+      await DB.createLearner(code,{ name, answers:{}, progress:{}, confession:"", createdAt:Date.now() });
+      alert(`등록 완료!\n\n${name} 님의 코드: ${code}\n\n이 코드를 새가족에게 전달하세요.`);
+      renderPastorHome();
+    }catch(e){ console.error(e); alert("등록 실패. 다시 시도해 주세요."); }
+  };
+  app.querySelectorAll(".view").forEach(b=> b.onclick=()=> renderPastorLearner(b.closest("tr").dataset.code));
+  const nav=document.createElement("div"); nav.className="card";
+  nav.innerHTML=`<h2>공동체 관리</h2>
+    <div class="row2">
+      <button class="btn sec" id="goPray">🙏 기도제목 보기</button>
+      <button class="btn sec" id="goQna">💬 질문 답변하기</button>
+    </div>`;
+  app.appendChild(nav);
+  document.getElementById("goPray").onclick=()=>renderPrayers("pastor");
+  document.getElementById("goQna").onclick=()=>renderQna("pastor");
+}
+
+async function renderPastorLearner(code){
+  let l=null; try{ l=await DB.getLearner(code); }catch(e){ console.error(e); }
+  if(!l){ alert("불러오지 못했습니다."); return; }
+  const ans=l.answers||{}, p=l.progress||{};
+  app.innerHTML=`
+    <button class="btn sec" id="back" style="min-height:44px">‹ 명단</button>
+    <div class="card">
+      <span class="pill">${esc(l.name||"-")}</span>
+      <span class="codechip">${esc(code)}</span>
+      <div class="progress" style="margin-top:10px"><i style="width:${progressPct(l)}%"></i></div>
+      <p class="muted">${progressPct(l)}% 진행</p>
+    </div>
+    <div class="card">
+      <h2>주차별 답안</h2>
+      ${CURRICULUM.map(c=>`
+        <h3 style="color:var(--navy)">${c.w}주 · ${esc(c.title)} ${p["w"+c.w]?.done?"✓":""}</h3>
+        ${c.q.map((q,i)=>`<p><b>${i+1}. ${esc(q)}</b><br>${esc(ans["w"+c.w+"_q"+(i+1)]||"— (미작성)")}</p>`).join("")}
+        ${c.confession && l.confession?`<div class="one" style="background:#eae6f2;border-color:#7e6cb0">신앙고백: ${esc(l.confession)}</div>`:""}
+      `).join("")}
+    </div>
+    <div class="card">
+      <h2>1:1 비공개 대화</h2>
+      <div id="msgs" class="muted">불러오는 중…</div>
+      <textarea id="msgin" placeholder="답장을 적어주세요" style="min-height:60px;margin-top:8px"></textarea>
+      <button class="btn" id="msgsend" style="margin-top:8px">답장 보내기</button>
+    </div>`;
+  document.getElementById("back").onclick=renderPastorHome;
+  loadThread(code,true);
+  document.getElementById("msgsend").onclick=async()=>{
+    const v=document.getElementById("msgin").value.trim(); if(!v) return;
+    try{ await DB.addMessage(code,{ from:"pastor", text:v }); document.getElementById("msgin").value=""; loadThread(code,true); }
+    catch(e){ console.error(e); alert("전송 실패."); }
+  };
+}
+
+/* ── 기도제목 나눔(공유) ── */
+async function renderPrayers(role){
+  const back = ()=> role==="pastor" ? renderPastorHome() : renderLearnerHome();
+  app.innerHTML=`
+    <button class="btn sec" id="back" style="min-height:44px">‹ 뒤로</button>
+    <div class="card">
+      <h1>🙏 기도제목 나눔</h1>
+      <p class="muted">함께 기도하면 힘이 됩니다. ‘🙏 기도할게요’로 마음을 전해요.</p>
+      <textarea id="prtext" placeholder="나누고 싶은 기도제목을 적어주세요"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-top:8px">
+        <input type="checkbox" id="pranon" style="width:auto"> 이름 없이(익명) 올리기</label>
+      <button class="btn" id="prsend" style="margin-top:8px">기도제목 올리기</button>
+    </div>
+    <div id="prlist"><p class="muted">불러오는 중…</p></div>`;
+  document.getElementById("back").onclick=back;
+  async function refresh(){
+    let list=[]; try{ list=await DB.listPrayers(); }catch(e){ console.error(e); }
+    document.getElementById("prlist").innerHTML = list.length ? list.map(p=>`
+      <div class="card">
+        <p>${esc(p.text)}</p>
+        <div class="row2" style="align-items:center">
+          <small class="muted">${esc(p.name||"익명")} · ${new Date(p.at).toLocaleDateString("ko-KR")}</small>
+          <div style="text-align:right">
+            <button class="btn sec pray" data-id="${esc(p.id)}" style="min-height:40px;padding:0 12px">🙏 기도할게요 ${p.prayedBy||0}</button>
+            ${role==="pastor"?`<button class="btn sec del" data-id="${esc(p.id)}" style="min-height:40px;padding:0 12px;background:#fdeeee;color:#c0504d">삭제</button>`:""}
+          </div>
+        </div>
+      </div>`).join("") : `<p class="muted">아직 올라온 기도제목이 없습니다. 먼저 나눠보세요.</p>`;
+    document.querySelectorAll(".pray").forEach(b=> b.onclick=async()=>{ try{ await DB.prayFor(b.dataset.id); refresh(); }catch(e){ console.error(e); } });
+    document.querySelectorAll(".del").forEach(b=> b.onclick=async()=>{ if(confirm("삭제할까요?")){ try{ await DB.deletePrayer(b.dataset.id); refresh(); }catch(e){ console.error(e); } } });
+  }
+  document.getElementById("prsend").onclick=async()=>{
+    const t=document.getElementById("prtext").value.trim(); if(!t) return;
+    const anon=document.getElementById("pranon").checked;
+    const name= anon ? "익명" : ((S.learner&&S.learner.name) || "인도자");
+    try{ await DB.addPrayer({ name, text:t }); document.getElementById("prtext").value=""; refresh(); }
+    catch(e){ console.error(e); alert("올리기에 실패했어요. 다시 시도해 주세요."); }
+  };
+  refresh();
+}
+
+/* ── 질문과 답변(Q&A) ── */
+async function renderQna(role){
+  const isP = role==="pastor";
+  app.innerHTML=`
+    <button class="btn sec" id="back" style="min-height:44px">‹ 뒤로</button>
+    <div class="card">
+      <h1>💬 질문과 답변</h1>
+      <p class="muted">궁금한 점을 편하게 물어보세요. 인도자가 답해 드립니다.</p>
+      ${!isP?`<textarea id="qtext" placeholder="질문을 적어주세요"></textarea>
+      <button class="btn" id="qsend" style="margin-top:8px">질문 올리기</button>`:""}
+    </div>
+    <div id="qlist"><p class="muted">불러오는 중…</p></div>`;
+  document.getElementById("back").onclick=()=> isP ? renderPastorHome() : renderLearnerHome();
+  async function refresh(){
+    let list=[]; try{ list=await DB.listQna(); }catch(e){ console.error(e); }
+    document.getElementById("qlist").innerHTML = list.length ? list.map(q=>`
+      <div class="card">
+        <p><b>Q. ${esc(q.text)}</b></p>
+        <small class="muted">${esc(q.name||"새가족")} · ${new Date(q.at).toLocaleDateString("ko-KR")}</small>
+        ${q.answer?`<div class="verse" style="margin-top:8px"><b>A.</b> ${esc(q.answer)}</div>`
+                  :`<p class="muted" style="margin-top:6px">아직 답변 대기 중이에요.</p>`}
+        ${isP?`<div style="margin-top:8px">
+          <textarea class="ans" data-id="${esc(q.id)}" placeholder="답변을 작성하세요">${esc(q.answer||"")}</textarea>
+          <div class="row2" style="margin-top:6px">
+            <button class="btn ansbtn" data-id="${esc(q.id)}" style="min-height:44px">답변 저장</button>
+            <button class="btn sec qdel" data-id="${esc(q.id)}" style="min-height:44px;background:#fdeeee;color:#c0504d">삭제</button>
+          </div></div>`:""}
+      </div>`).join("") : `<p class="muted">아직 질문이 없습니다.</p>`;
+    if(isP){
+      document.querySelectorAll(".ansbtn").forEach(b=> b.onclick=async()=>{
+        const ta=document.querySelector('.ans[data-id="'+b.dataset.id+'"]');
+        try{ await DB.answerQna(b.dataset.id, ta.value.trim()); refresh(); }catch(e){ console.error(e); alert("저장 실패."); }
+      });
+      document.querySelectorAll(".qdel").forEach(b=> b.onclick=async()=>{ if(confirm("삭제할까요?")){ try{ await DB.deleteQna(b.dataset.id); refresh(); }catch(e){ console.error(e); } } });
+    }
+  }
+  if(!isP) document.getElementById("qsend").onclick=async()=>{
+    const t=document.getElementById("qtext").value.trim(); if(!t) return;
+    try{ await DB.addQna({ name:(S.learner&&S.learner.name)||"새가족", text:t }); document.getElementById("qtext").value=""; refresh(); }
+    catch(e){ console.error(e); alert("올리기에 실패했어요."); }
+  };
+  refresh();
+}
+
+/* ── 데모 시드(미리보기용 샘플 데이터) ── */
+function seedDemo(){
+  if(MODE!=="demo") return;
+  if(LS.read("nf_index", null)) return; // 이미 데이터가 있으면 건너뜀
+  const seed=[{code:"민수-4821",name:"민수"},{code:"영희-1903",name:"영희"},{code:"철수-7755",name:"철수"}];
+  const idx=[];
+  seed.forEach(s=>{ LS.write("nf_learner_"+s.code, { name:s.name, answers:{}, progress:{}, confession:"", createdAt:Date.now() }); idx.push(s.code); });
+  LS.write("nf_index", idx);
+  LS.write("nf_prayers", [
+    { id:"p1", name:"영희", text:"새 직장에 잘 적응하도록 기도해 주세요.", at:Date.now()-86400000, prayedBy:2 },
+    { id:"p2", name:"익명", text:"가족이 함께 교회에 나오게 되길 소망합니다.", at:Date.now()-3600000, prayedBy:1 },
+  ]);
+  LS.write("nf_qna", [
+    { id:"q1", name:"민수", text:"구원의 확신이 잘 안 들 때는 어떻게 하나요?",
+      answer:"느낌이 아니라 ‘약속’을 보세요. 5주의 세 근거(말씀·그리스도의 사역·성령의 증거)를 다시 떠올리면 큰 힘이 됩니다.",
+      at:Date.now()-7200000, answeredAt:Date.now()-3600000 },
+  ]);
+}
+
+/* ───────────────────────── 5) 헤더/글자크기/집중모드 ───────────────────────── */
+(function uiControls(){
+  // 글자 크기 토글
+  const sizes=[18,21,24]; let si=+(localStorage.getItem("nf_fs")||0);
+  const applyFs=()=>{ document.documentElement.style.setProperty("--fs", sizes[si]+"px");
+    document.getElementById("fsBtn").textContent = si===0?"가＋":(si===1?"가＋＋":"가"); };
+  applyFs();
+  document.getElementById("fsBtn").onclick=()=>{ si=(si+1)%sizes.length; localStorage.setItem("nf_fs",si); applyFs(); };
+
+  // 집중 읽기 모드(헤더 숨김)
+  document.getElementById("focusBtn").onclick=()=> document.body.classList.add("focus");
+  document.getElementById("focusExit").onclick=()=> document.body.classList.remove("focus");
+
+  // 스크롤 내릴 때 헤더 자동 숨김(본문 가림 방지), 올리면 복귀
+  let lastY=0; const hdr=document.querySelector("header");
+  addEventListener("scroll",()=>{ if(document.body.classList.contains("focus")) return;
+    const y=scrollY; if(y>lastY && y>80) hdr.classList.add("hide"); else hdr.classList.remove("hide"); lastY=y; },{passive:true});
+
+  // 나가기
+  document.getElementById("logoutBtn").onclick=async()=>{
+    try{ if(MODE==="live" && fx?.auth?.currentUser) await fx.signOut(fx.auth); }catch{}
+    S={ role:null }; document.body.classList.remove("focus"); renderLogin();
+  };
+})();
+
+/* ───────────────────────── 6) 시작 ───────────────────────── */
+(async()=>{ await initBackend(); seedDemo(); renderLogin(); })();
+</script>
 </body>
 </html>
